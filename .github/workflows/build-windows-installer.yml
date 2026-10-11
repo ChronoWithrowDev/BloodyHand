@@ -1,0 +1,39 @@
+name: Build Bloody Hand Horror Game
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build Windows installers
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install dependencies and build
+        shell: pwsh
+        run: |
+          Set-Location "bloody-hand-horror-game"
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run dist:win
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Windows installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: Bloody-Hand-Windows-Installers
+          path: bloody-hand-horror-game/release/*.exe
+          if-no-files-found: error
+          retention-days: 30
