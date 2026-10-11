@@ -96,7 +96,7 @@ jobs:
                 arch: [x64]
               - target: portable
                 arch: [x64]
-            artifactName: 'Bloody-Hand-${version}-${target}.${ext}'
+            
           nsis:
             oneClick: false
             allowToChangeInstallationDirectory: true
