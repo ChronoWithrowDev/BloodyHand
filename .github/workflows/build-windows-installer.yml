@@ -1,3 +1,4 @@
+
 name: Build Bloody Hand Horror Game
 
 on:
@@ -12,6 +13,7 @@ jobs:
   build-windows:
     name: Build Windows installers
     runs-on: windows-latest
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -21,13 +23,92 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install dependencies and build
+      - name: Prepare desktop app and build
         shell: pwsh
         run: |
           Set-Location "bloody-hand-horror-game"
+
           npm ci
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          npm run dist:win
+
+          npm install --save-dev electron@44.7.0 electron-builder@26.15.3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          New-Item -ItemType Directory -Force electron | Out-Null
+
+          @'
+          const { app, BrowserWindow, shell } = require("electron");
+          const path = require("node:path");
+
+          function createWindow() {
+            const win = new BrowserWindow({
+              width: 1360,
+              height: 850,
+              minWidth: 980,
+              minHeight: 620,
+              backgroundColor: "#08070a",
+              title: "Bloody Hand - Horror Game",
+              autoHideMenuBar: true,
+              webPreferences: {
+                contextIsolation: true,
+                nodeIntegration: false,
+                sandbox: true
+              }
+            });
+
+            win.webContents.setWindowOpenHandler(({ url }) => {
+              if (url.startsWith("https://") || url.startsWith("http://")) {
+                shell.openExternal(url).catch(() => {});
+              }
+              return { action: "deny" };
+            });
+
+            win.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+          }
+
+          app.whenReady().then(() => {
+            createWindow();
+            app.on("activate", () => {
+              if (BrowserWindow.getAllWindows().length === 0) createWindow();
+            });
+          });
+
+          app.on("window-all-closed", () => {
+            if (process.platform !== "darwin") app.quit();
+          });
+          '@ | Set-Content -Path "electron/main.cjs" -Encoding utf8
+
+          @'
+          appId: com.bloodyhand.horrorgame
+          productName: Bloody Hand Horror Game
+          directories:
+            output: release
+          files:
+            - dist/**/*
+            - electron/main.cjs
+            - package.json
+          asar: true
+          extraMetadata:
+            main: electron/main.cjs
+          win:
+            target:
+              - target: nsis
+                arch: [x64]
+              - target: portable
+                arch: [x64]
+            artifactName: 'Bloody-Hand-${version}-${target}.${ext}'
+          nsis:
+            oneClick: false
+            allowToChangeInstallationDirectory: true
+            createDesktopShortcut: true
+            createStartMenuShortcut: true
+            shortcutName: Bloody Hand Horror Game
+          '@ | Set-Content -Path "electron-builder.yml" -Encoding utf8
+
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          npx electron-builder --win nsis portable --config electron-builder.yml
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload Windows installers
